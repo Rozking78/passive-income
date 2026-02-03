@@ -37,12 +37,17 @@ def show_banner():
 ║                   Target: $10,000 / week                         ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  Commands:                                                       ║
-║    setup     - First-time setup (login to TikTok)               ║
-║    auto      - Run full automation cycle                         ║
-║    generate  - Generate videos only                              ║
-║    post      - Post next video to TikTok                        ║
-║    status    - Show current status                               ║
-║    daemon    - Run continuously (24/7 automation)               ║
+║    setup      - First-time setup (login to TikTok)              ║
+║    auto       - Run full automation cycle                        ║
+║    generate   - Generate videos only                             ║
+║    post       - Post next video to TikTok                       ║
+║    status     - Show current status                              ║
+║    daemon     - Run continuously (24/7 automation)              ║
+║                                                                  ║
+║  Analytics:                                                      ║
+║    track      - Scrape TikTok performance stats                 ║
+║    analytics  - Show performance dashboard                       ║
+║    learn      - Show what's working + adapt strategy            ║
 ╚══════════════════════════════════════════════════════════════════╝
     """)
 
@@ -240,6 +245,85 @@ def daemon():
     scheduler.run_daemon()
 
 
+def track():
+    """Scrape TikTok performance stats"""
+    print("\n📊 TRACKING PERFORMANCE")
+    print("=" * 60)
+
+    from src.video_engine.performance_tracker import PerformanceTracker
+
+    tracker = PerformanceTracker()
+
+    username = input("TikTok username (without @, or press Enter to auto-detect): ").strip()
+    tracker.scrape_tiktok_stats(username or None)
+
+    print("\n✓ Performance data updated!")
+    tracker.show_dashboard()
+
+
+def analytics():
+    """Show performance analytics dashboard"""
+    print("\n📈 PERFORMANCE ANALYTICS")
+    print("=" * 60)
+
+    from src.video_engine.performance_tracker import PerformanceTracker
+
+    tracker = PerformanceTracker()
+    tracker.show_dashboard()
+
+
+def learn():
+    """Show what's working and adapt strategy"""
+    print("\n🧠 LEARNING & ADAPTATION")
+    print("=" * 60)
+
+    from src.video_engine.performance_tracker import PerformanceTracker
+    from src.video_engine.adaptive_engine import AdaptiveEngine
+
+    # Analyze performance
+    tracker = PerformanceTracker()
+    adjustments = tracker.analyze_and_adapt()
+
+    # Show patterns from adaptive engine
+    engine = AdaptiveEngine()
+    patterns = engine.analyze_patterns()
+
+    print("\n🎯 WINNING PATTERNS:")
+
+    if patterns.get("hooks"):
+        print("\n  Best Hooks:")
+        for h in patterns["hooks"][:3]:
+            bar = "█" * int(h["avg_score"] / 100)
+            print(f"    {h['style']:<12} {bar} (score: {h['avg_score']}, clicks: {h['clicks']})")
+
+    if patterns.get("products"):
+        print("\n  Best Products:")
+        for p in patterns["products"][:3]:
+            print(f"    {p['product']:<12} ${p['revenue']:.2f} revenue, {p['conversions']} conversions")
+
+    if patterns.get("best_times"):
+        print("\n  Best Posting Times:")
+        for t in patterns["best_times"][:3]:
+            print(f"    {t['hour']:02d}:00 - score {t['avg_score']}")
+
+    # Get recommendations
+    recs = engine.get_recommendations()
+
+    print("\n💡 NEXT CONTENT RECOMMENDATION:")
+    print(f"    Hook Style: {recs.get('hook_style', 'hook')}")
+    print(f"    Product: {recs.get('product', 'Jasper')}")
+    print(f"    Post at: {recs.get('post_time', 12)}:00")
+
+    if adjustments.get("insights"):
+        print("\n📌 INSIGHTS:")
+        for insight in adjustments["insights"]:
+            print(f"    → {insight}")
+
+    # Update strategy
+    engine.update_strategy()
+    print("\n✓ Strategy updated based on learnings!")
+
+
 def main():
     show_banner()
 
@@ -264,9 +348,15 @@ def main():
         status()
     elif command == "daemon":
         daemon()
+    elif command == "track":
+        track()
+    elif command == "analytics":
+        analytics()
+    elif command == "learn":
+        learn()
     else:
         print(f"Unknown command: {command}")
-        print("Commands: setup, auto, generate, post, status, daemon")
+        print("Commands: setup, auto, generate, post, status, daemon, track, analytics, learn")
 
 
 if __name__ == "__main__":

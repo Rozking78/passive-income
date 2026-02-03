@@ -144,16 +144,67 @@ class ContentScheduler:
         print(f"🔄 AUTOMATION CYCLE - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print("=" * 60)
 
-        # Step 1: Generate if needed
+        # Step 1: Track performance from previous posts
+        self.track_performance()
+
+        # Step 2: Analyze and adapt strategy
+        self.analyze_and_adapt()
+
+        # Step 3: Generate if needed (using adapted strategy)
         if self.today_log["generated"] < self.videos_per_day:
             self.generate_content()
 
-        # Step 2: Post next video
+        # Step 4: Post next video
         if self.today_log["posted"] < self.videos_per_day:
             self.post_next_video()
 
-        # Step 3: Show status
+        # Step 5: Show status
         self.show_status()
+
+    def track_performance(self):
+        """Scrape and track TikTok performance"""
+        try:
+            from src.video_engine.performance_tracker import PerformanceTracker
+
+            tracker = PerformanceTracker()
+
+            # Only scrape every 6 hours to avoid rate limits
+            last_scrape_file = Path("data/last_scrape.txt")
+            should_scrape = True
+
+            if last_scrape_file.exists():
+                last_scrape = datetime.fromisoformat(last_scrape_file.read_text().strip())
+                if datetime.now() - last_scrape < timedelta(hours=6):
+                    should_scrape = False
+                    print("   ⏭️ Skipping scrape (last scrape < 6 hours ago)")
+
+            if should_scrape:
+                print("\n📊 Tracking TikTok performance...")
+                tracker.scrape_tiktok_stats()
+                last_scrape_file.write_text(datetime.now().isoformat())
+
+        except Exception as e:
+            print(f"   Performance tracking error: {e}")
+
+    def analyze_and_adapt(self):
+        """Analyze performance and adapt content strategy"""
+        try:
+            from src.video_engine.performance_tracker import PerformanceTracker
+
+            tracker = PerformanceTracker()
+            adjustments = tracker.analyze_and_adapt()
+
+            # Store recommendations for content generation
+            if adjustments.get("recommended_hook_styles"):
+                self.config["preferred_hooks"] = adjustments["recommended_hook_styles"]
+                self._save_config()
+
+            if adjustments.get("recommended_products"):
+                self.config["preferred_products"] = adjustments["recommended_products"]
+                self._save_config()
+
+        except Exception as e:
+            print(f"   Adaptation error: {e}")
 
     def show_status(self):
         """Show current status"""
