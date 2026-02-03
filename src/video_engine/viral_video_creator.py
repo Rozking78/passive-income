@@ -105,22 +105,36 @@ class StockMediaFetcher:
             url = f"https://api.pexels.com/videos/search?query={urllib.parse.quote(query)}&orientation={orientation}&per_page=10"
             req = urllib.request.Request(url)
             req.add_header("Authorization", self.pexels_key)
+            req.add_header("User-Agent", "Mozilla/5.0")
 
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=30) as response:
                 data = json.loads(response.read().decode())
 
             if data.get("videos"):
                 video = random.choice(data["videos"])
-                # Get HD quality video file
+                # Get HD quality video file - prefer portrait/vertical
                 video_files = video.get("video_files", [])
-                # Prefer 720p or 1080p
-                suitable = [v for v in video_files if v.get("height", 0) >= 720]
+                # Prefer 720p or 1080p portrait
+                suitable = [v for v in video_files if v.get("height", 0) >= 720 and v.get("height", 0) > v.get("width", 0)]
+                if not suitable:
+                    suitable = [v for v in video_files if v.get("height", 0) >= 720]
                 if suitable:
+                    # Sort by height descending, take best quality
+                    suitable.sort(key=lambda x: x.get("height", 0), reverse=True)
                     video_url = suitable[0]["link"]
 
                     # Download video
                     output_path = self.video_cache / f"{cache_key}_{video['id']}.mp4"
-                    urllib.request.urlretrieve(video_url, output_path)
+                    print(f"   Downloading Pexels video: {video['id']}...")
+
+                    # Download with headers
+                    dl_req = urllib.request.Request(video_url)
+                    dl_req.add_header("User-Agent", "Mozilla/5.0")
+                    with urllib.request.urlopen(dl_req, timeout=60) as response:
+                        with open(output_path, 'wb') as f:
+                            f.write(response.read())
+
+                    print(f"   ✓ Downloaded: {output_path.name}")
                     return str(output_path)
         except Exception as e:
             print(f"Pexels API error: {e}")
