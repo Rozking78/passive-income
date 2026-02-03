@@ -4,6 +4,7 @@ Viral Video Creator
 Creates high-engagement TikTok/Reels videos with:
 - Background stock footage (Pexels/Pixabay)
 - Royalty-free trending music
+- Dynamic voiceover (Edge TTS)
 - Animated text overlays
 - Pattern interrupts for retention
 - Motivational hooks
@@ -14,6 +15,7 @@ Based on viral content research:
 - Pattern interrupts every 2-3 seconds
 - Text in upper third, avoid bottom 20%
 - 3-7 words per text chunk
+- Strong voice builds trust and engagement
 """
 
 import os
@@ -273,7 +275,7 @@ class ViralVideoCreator:
     Creates viral-optimized short-form videos with:
     - Background footage
     - Text overlays
-    - Music
+    - Music + Voiceover
     - Pattern interrupts
     """
 
@@ -286,6 +288,15 @@ class ViralVideoCreator:
         self.fps = 30
 
         self.media_fetcher = StockMediaFetcher()
+
+        # Initialize voiceover generator
+        try:
+            from src.video_engine.voiceover import VoiceoverGenerator
+            self.voiceover = VoiceoverGenerator()
+            self.voiceover_available = self.voiceover.available or self.voiceover.fallback_available
+        except ImportError:
+            self.voiceover = None
+            self.voiceover_available = False
 
         # Text positioning (upper third, avoid bottom 20%)
         # TikTok safe zones
@@ -358,6 +369,8 @@ class ViralVideoCreator:
         music_path: str = None,
         style: str = "bold_white",
         add_hook: bool = True,
+        add_voiceover: bool = True,
+        voice_style: str = "motivational",
         output_name: str = None
     ) -> Optional[str]:
         """
@@ -365,6 +378,8 @@ class ViralVideoCreator:
 
         Args:
             texts: List of text strings to display (3-7 words each)
+            add_voiceover: Whether to add dynamic voiceover
+            voice_style: Voice style (motivational, tutorial, story, hype)
             background_query: Search term for background video
             music_path: Path to music file (optional)
             style: Text style name
@@ -401,11 +416,19 @@ class ViralVideoCreator:
                 # Use cinematic/motivational music by default (not beeps)
                 music_path = self.media_fetcher.get_local_music("cinematic")
 
+        # Generate voiceover if enabled
+        voiceover_path = None
+        if add_voiceover and self.voiceover_available:
+            print("   Generating voiceover...")
+            voiceover_path = self.voiceover.generate_for_video_texts(texts, style=voice_style)
+            if voiceover_path:
+                print(f"   ✓ Voiceover generated")
+
         # Create video with or without background
         if bg_video and MOVIEPY_AVAILABLE:
-            return self._create_with_moviepy(texts, bg_video, music_path, style, output_name)
+            return self._create_with_moviepy(texts, bg_video, music_path, style, output_name, voiceover_path)
         else:
-            return self._create_with_ffmpeg(texts, bg_video, music_path, style, output_name)
+            return self._create_with_ffmpeg(texts, bg_video, music_path, style, output_name, voiceover_path)
 
     def _shorten_text(self, text: str, max_words: int = 7) -> str:
         """Ensure text is short for viral format"""
@@ -420,7 +443,8 @@ class ViralVideoCreator:
         bg_video: str,
         music_path: str,
         style: str,
-        output_name: str
+        output_name: str,
+        voiceover_path: str = None
     ) -> Optional[str]:
         """Create video using MoviePy for advanced effects"""
 
@@ -520,7 +544,7 @@ class ViralVideoCreator:
 
         except Exception as e:
             print(f"MoviePy error: {e}")
-            return self._create_with_ffmpeg(texts, bg_video, music_path, style, output_name)
+            return self._create_with_ffmpeg(texts, bg_video, music_path, style, output_name, voiceover_path)
 
     def _resize_to_vertical(self, clip):
         """Resize video to 9:16 vertical format"""
@@ -553,7 +577,8 @@ class ViralVideoCreator:
         bg_video: str,
         music_path: str,
         style: str,
-        output_name: str
+        output_name: str,
+        voiceover_path: str = None
     ) -> Optional[str]:
         """Create video using FFmpeg directly (fallback method)"""
 
@@ -621,24 +646,61 @@ class ViralVideoCreator:
             cmd = f'ffmpeg -y {inputs} -filter_complex "{filter_complex}" -map "{final_output}" -c:v libx264 -pix_fmt yuv420p -r {self.fps} -t {total_duration} "{video_no_audio}"'
             subprocess.run(cmd, shell=True, capture_output=True, check=True)
 
-            # Step 2: Add music to video
-            if music_path and os.path.exists(music_path):
-                # Combine video with music, trim/loop music to match video duration
+            # Step 2: Add audio (voiceover + music mix)
+            has_voiceover = voiceover_path and os.path.exists(voiceover_path)
+            has_music = music_path and os.path.exists(music_path)
+
+            if has_voiceover and has_music:
+                # Mix voiceover (loud) with music (background, quieter)
+                # Voice at full volume, music at 20% volume
                 subprocess.run([
                     "ffmpeg", "-y",
                     "-i", str(video_no_audio),
-                    "-stream_loop", "-1",  # Loop music if shorter than video
+                    "-i", voiceover_path,
+                    "-stream_loop", "-1",
+                    "-i", music_path,
+                    "-filter_complex",
+                    f"[1:a]volume=1.0[voice];[2:a]volume=0.2[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2,afade=t=out:st={total_duration-2}:d=2[aout]",
+                    "-map", "0:v",
+                    "-map", "[aout]",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-t", str(total_duration),
+                    "-shortest",
+                    str(output_path)
+                ], capture_output=True, check=True)
+            elif has_voiceover:
+                # Just voiceover, no music
+                subprocess.run([
+                    "ffmpeg", "-y",
+                    "-i", str(video_no_audio),
+                    "-i", voiceover_path,
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-t", str(total_duration),
+                    "-af", f"afade=t=out:st={total_duration-2}:d=2",
+                    "-shortest",
+                    str(output_path)
+                ], capture_output=True, check=True)
+            elif has_music:
+                # Just music, no voiceover
+                subprocess.run([
+                    "ffmpeg", "-y",
+                    "-i", str(video_no_audio),
+                    "-stream_loop", "-1",
                     "-i", music_path,
                     "-c:v", "copy",
                     "-c:a", "aac",
                     "-b:a", "192k",
                     "-t", str(total_duration),
-                    "-af", f"afade=t=out:st={total_duration-2}:d=2",  # Fade out last 2 seconds
+                    "-af", f"afade=t=out:st={total_duration-2}:d=2",
                     "-shortest",
                     str(output_path)
                 ], capture_output=True, check=True)
             else:
-                # No music, just copy the video
+                # No audio, just copy the video
                 import shutil
                 shutil.copy(str(video_no_audio), str(output_path))
 
