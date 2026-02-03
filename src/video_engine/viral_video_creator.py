@@ -553,7 +553,7 @@ class ViralVideoCreator:
                     "-i", bg_video,
                     "-vf", f"scale={self.width}:{self.height}:force_original_aspect_ratio=increase,crop={self.width}:{self.height},setsar=1,eq=brightness=-0.2",
                     "-t", str(total_duration),
-                    "-an",  # Remove audio
+                    "-an",  # Remove audio from video
                     str(processed_bg)
                 ], capture_output=True, check=True)
                 bg_source = str(processed_bg)
@@ -567,6 +567,16 @@ class ViralVideoCreator:
                 img_path = temp_dir / f"text_{i:03d}.png"
                 self._create_text_overlay(text, str(img_path), style)
                 overlay_paths.append(img_path)
+
+            # Output path
+            if not output_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_name = f"viral_{timestamp}.mp4"
+
+            output_path = self.output_dir / output_name
+
+            # Step 1: Create video with text overlays (no audio)
+            video_no_audio = temp_dir / "video_no_audio.mp4"
 
             # Build FFmpeg filter for text overlays
             filter_parts = []
@@ -589,25 +599,29 @@ class ViralVideoCreator:
             filter_complex = ";".join(filter_parts)
             final_output = f"[v{len(overlay_paths)-1}]"
 
-            # Output path
-            if not output_name:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output_name = f"viral_{timestamp}.mp4"
-
-            output_path = self.output_dir / output_name
-
-            # Build command
-            cmd = f'ffmpeg -y {inputs}'
-            if music_path and os.path.exists(music_path):
-                cmd += f' -i "{music_path}"'
-
-            cmd += f' -filter_complex "{filter_complex}"'
-            cmd += f' -map "{final_output}" -map {len(overlay_paths)+1}:a?'
-            cmd += f' -c:v libx264 -pix_fmt yuv420p -r {self.fps}'
-            cmd += f' -t {total_duration}'
-            cmd += f' "{output_path}"'
-
+            cmd = f'ffmpeg -y {inputs} -filter_complex "{filter_complex}" -map "{final_output}" -c:v libx264 -pix_fmt yuv420p -r {self.fps} -t {total_duration} "{video_no_audio}"'
             subprocess.run(cmd, shell=True, capture_output=True, check=True)
+
+            # Step 2: Add music to video
+            if music_path and os.path.exists(music_path):
+                # Combine video with music, trim/loop music to match video duration
+                subprocess.run([
+                    "ffmpeg", "-y",
+                    "-i", str(video_no_audio),
+                    "-stream_loop", "-1",  # Loop music if shorter than video
+                    "-i", music_path,
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-t", str(total_duration),
+                    "-af", f"afade=t=out:st={total_duration-2}:d=2",  # Fade out last 2 seconds
+                    "-shortest",
+                    str(output_path)
+                ], capture_output=True, check=True)
+            else:
+                # No music, just copy the video
+                import shutil
+                shutil.copy(str(video_no_audio), str(output_path))
 
             return str(output_path)
 
