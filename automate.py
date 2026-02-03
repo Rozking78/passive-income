@@ -139,9 +139,12 @@ class FullAutomation:
 
                     video_path = self.viral_creator.create_viral_video(
                         texts=final_texts,
-                        background_query="motivation success",
                         style="bold_white",
                         add_hook=False,
+                        add_voiceover=True,
+                        voice_style="motivational",
+                        min_cuts=1,  # At least 1 cut (2 clips) - pain → transformation
+                        use_psychology_videos=True,  # Psychology-aligned video selection
                         output_name=output_name
                     )
                 else:

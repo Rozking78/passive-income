@@ -106,20 +106,34 @@ PAIN_POINTS = [
 # ASPIRATIONAL OUTCOMES (What they dream of)
 # =============================================================================
 
-ASPIRATIONS = [
+# First person - used after "Now I..."
+ASPIRATIONS_FIRST_PERSON = [
+    "wake up without an alarm",
+    "check my bank account and smile",
+    "say yes without checking the price",
+    "work from anywhere I want",
+    "provide for my family properly",
+    "finally breathe",
+    "buy what I want, not what I can afford",
+    "make money while I sleep",
+    "choose how I spend my time",
+]
+
+# Second person - used after "You could..."
+ASPIRATIONS_SECOND_PERSON = [
     "wake up without an alarm",
     "check your bank account and smile",
-    "say 'yes' without checking the price",
-    "work from anywhere in the world",
+    "say yes without checking the price",
+    "work from anywhere you want",
     "provide for your family properly",
-    "prove the doubters wrong",
     "finally breathe",
     "buy what you want, not what you can afford",
-    "quit the job that's killing you",
-    "build something that's actually yours",
-    "stop trading time for money",
-    "create generational wealth",
+    "make money while you sleep",
+    "choose how you spend your time",
 ]
+
+# Legacy compatibility
+ASPIRATIONS = ASPIRATIONS_FIRST_PERSON
 
 # =============================================================================
 # BELIEVABLE OUTCOMES (Specific, realistic)
@@ -129,11 +143,10 @@ REALISTIC_OUTCOMES = [
     "$500 extra this month",
     "$2,500 in the next 30 days",
     "15 hours back every week",
-    "your first paying client this week",
-    "doubled your output without more work",
-    "$80/hour instead of $15",
+    "my first paying client this week",
+    "doubled my output without more work",
+    "$80 an hour instead of $15",
     "3 new income streams",
-    "quit your job in 6 months",
     "financial breathing room",
 ]
 
@@ -177,7 +190,7 @@ def get_viral_text_sequence(product_name: str, benefit: str) -> list:
         [
             random.choice(PAIN_TO_ASPIRATION_HOOKS),
             f"Then I found {product_name}",
-            f"Now I {random.choice(ASPIRATIONS)}",
+            f"Now I {random.choice(ASPIRATIONS_FIRST_PERSON)}",
             random.choice(CTAS),
         ],
         # Curiosity → Reveal → Proof → CTA
@@ -200,14 +213,14 @@ def get_viral_text_sequence(product_name: str, benefit: str) -> list:
             random.choice(STORY_HOOKS),
             f"I was {random.choice(PAIN_POINTS)}",
             f"Then {product_name} happened",
-            f"Now: {random.choice(REALISTIC_OUTCOMES)}",
+            f"Now I {random.choice(ASPIRATIONS_FIRST_PERSON)}",
             random.choice(CTAS),
         ],
         # Social Proof → Gap → Bridge → CTA
         [
             random.choice(SOCIAL_PROOF_HOOKS),
             f"They use {product_name}",
-            f"You could {random.choice(ASPIRATIONS)}",
+            f"You could {random.choice(ASPIRATIONS_SECOND_PERSON)}",
             random.choice(CTAS),
         ],
     ]
