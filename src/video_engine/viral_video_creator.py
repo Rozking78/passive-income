@@ -223,12 +223,30 @@ class StockMediaFetcher:
             return str(random.choice(cached))
         return None
 
-    def get_local_music(self) -> Optional[str]:
-        """Get a random music track from local cache"""
+    def get_local_music(self, category: str = "any") -> Optional[str]:
+        """
+        Get a music track from local cache.
+
+        Categories:
+        - "cinematic" / "epic" - dramatic, inspiring
+        - "lofi" / "chill" - relaxed, ambient
+        - "any" - random selection
+        """
         music_files = list(self.music_cache.glob("*.mp3"))
-        if music_files:
-            return str(random.choice(music_files))
-        return None
+        if not music_files:
+            return None
+
+        # Filter by category if specified
+        if category in ["cinematic", "epic", "dramatic", "motivational"]:
+            filtered = [f for f in music_files if any(x in f.name.lower() for x in ["cinematic", "epic", "motivational"])]
+            if filtered:
+                music_files = filtered
+        elif category in ["lofi", "chill", "ambient", "soft"]:
+            filtered = [f for f in music_files if any(x in f.name.lower() for x in ["lofi", "chill", "ambient", "soft", "study"])]
+            if filtered:
+                music_files = filtered
+
+        return str(random.choice(music_files))
 
     def download_sample_videos(self):
         """Download some sample videos for offline use"""
@@ -380,7 +398,8 @@ class ViralVideoCreator:
             # Try API first, fall back to local cache
             music_path = self.media_fetcher.fetch_music("motivational")
             if not music_path:
-                music_path = self.media_fetcher.get_local_music()
+                # Use cinematic/motivational music by default (not beeps)
+                music_path = self.media_fetcher.get_local_music("cinematic")
 
         # Create video with or without background
         if bg_video and MOVIEPY_AVAILABLE:
