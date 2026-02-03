@@ -810,80 +810,96 @@ class ViralVideoCreator:
 
 
 class MotivationalContentGenerator:
-    """Generates motivational content optimized for virality"""
+    """
+    Generates motivational content optimized for virality.
+
+    Based on psychology research:
+    - Target audience is cognitively taxed - keep messaging SIMPLE
+    - Lead with transformation, not features
+    - Use identity-based language
+    - Validate pain without exploiting
+    - Be specific (numbers, timeframes, realistic outcomes)
+    """
 
     def __init__(self):
-        # Viral hook patterns
-        self.hooks = [
-            "This {product} changed my life",
-            "POV: You just discovered {product}",
-            "Nobody talks about this",
-            "The secret to {benefit}",
-            "Stop scrolling. You need this.",
-            "I wish someone told me this",
-            "This is your sign to {action}",
-            "In {time} you'll understand",
-            "What they don't want you to know",
-            "Wait for the end..."
-        ]
+        # Import psychology hooks
+        try:
+            from src.content_engine.psychology_hooks import (
+                get_viral_text_sequence,
+                get_psychological_hook,
+                PAIN_POINTS,
+                ASPIRATIONS,
+                REALISTIC_OUTCOMES,
+                CTAS
+            )
+            self.use_psychology = True
+            self.get_viral_sequence = get_viral_text_sequence
+            self.get_hook = get_psychological_hook
+            self.pain_points = PAIN_POINTS
+            self.aspirations = ASPIRATIONS
+            self.outcomes = REALISTIC_OUTCOMES
+            self.ctas = CTAS
+        except ImportError:
+            self.use_psychology = False
+            self._init_fallback()
 
-        # Pain points that resonate
+    def _init_fallback(self):
+        """Fallback if psychology module not available"""
         self.pain_points = [
-            "wasting hours on {task}",
-            "struggling with {problem}",
-            "feeling stuck",
-            "working too hard",
-            "not seeing results",
-            "missing opportunities"
+            "working 60 hours and still broke",
+            "watching others succeed while you struggle",
+            "feeling stuck in the same place",
         ]
-
-        # Benefits/transformations
-        self.benefits = [
-            "save 10+ hours weekly",
-            "write 10x faster",
-            "create viral content",
-            "scale your business",
-            "automate everything",
-            "finally break through"
+        self.aspirations = [
+            "wake up without an alarm",
+            "check your bank account and smile",
+            "finally breathe",
         ]
-
-        # CTAs
+        self.outcomes = [
+            "$500 extra this month",
+            "15 hours back every week",
+            "doubled your output",
+        ]
         self.ctas = [
-            "Link in bio to try free",
-            "Comment 'INFO' for link",
-            "Save this for later",
-            "Share with someone who needs this",
-            "Follow for more tips"
+            "Link in bio if you're ready",
+            "Save this. You'll need it.",
+            "Try it free. Link in bio.",
         ]
 
     def generate_viral_script(self, product: str, benefit: str) -> List[str]:
         """Generate a viral video script (list of text screens)"""
 
-        hook = random.choice(self.hooks).format(
-            product=product,
-            benefit=benefit,
-            action="start",
-            time="30 seconds"
-        )
+        if self.use_psychology:
+            # Use psychology-optimized sequence
+            return self.get_viral_sequence(product, benefit)
 
-        pain = random.choice(self.pain_points).format(
-            task="writing content",
-            problem="writer's block"
-        )
-
-        transformation = random.choice(self.benefits)
-
-        cta = random.choice(self.ctas)
-
-        script = [
-            hook,
-            f"I used to spend hours {pain}",
-            f"Then I found {product}",
-            f"Now I {transformation}",
-            cta
+        # Fallback generation
+        patterns = [
+            # Pain → Discovery → Transformation → CTA
+            [
+                f"Tired of {random.choice(self.pain_points)}?",
+                f"I found {product}",
+                f"Now I {random.choice(self.aspirations)}",
+                random.choice(self.ctas),
+            ],
+            # Hook → Problem → Solution → Result
+            [
+                "This changed everything for me",
+                f"I was {random.choice(self.pain_points)}",
+                f"Then {product} happened",
+                f"Result: {random.choice(self.outcomes)}",
+                random.choice(self.ctas),
+            ],
+            # Identity → Challenge → Bridge
+            [
+                "For people who refuse to settle",
+                f"{product} {benefit}",
+                f"You could {random.choice(self.aspirations)}",
+                random.choice(self.ctas),
+            ],
         ]
 
-        return script
+        return random.choice(patterns)
 
 
 def main():
