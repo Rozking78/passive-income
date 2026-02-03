@@ -1,0 +1,8 @@
+# Core dependencies (all included in Python stdlib)
+# No external packages required for basic functionality!
+
+# Optional - for enhanced features:
+# requests>=2.28.0    # Better HTTP handling
+# schedule>=1.1.0     # Task scheduling
+# rich>=13.0.0        # Beautiful terminal output
+# python-dotenv>=1.0  # Environment variables
