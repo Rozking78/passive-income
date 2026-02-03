@@ -28,56 +28,61 @@ except ImportError:
     GTTS_AVAILABLE = False
 
 
-# Dynamic voice options for motivational content
+# Natural voice options - actual Edge TTS voices
+# These are verified to exist in the Edge TTS API
 VOICE_PROFILES = {
-    # Male voices - strong, confident
-    "guy_energetic": {
-        "voice": "en-US-GuyNeural",
-        "rate": "+15%",
-        "pitch": "+5Hz",
-        "style": "energetic"
-    },
-    "christopher_confident": {
-        "voice": "en-US-ChristopherNeural",
-        "rate": "+10%",
+    # Male voices - natural, conversational
+    "andrew_natural": {
+        "voice": "en-US-AndrewNeural",
+        "rate": "+0%",
         "pitch": "+0Hz",
-        "style": "confident"
     },
-    "tony_intense": {
-        "voice": "en-US-TonyNeural",
-        "rate": "+20%",
-        "pitch": "+10Hz",
-        "style": "intense"
+    "brian_confident": {
+        "voice": "en-US-BrianNeural",
+        "rate": "+0%",
+        "pitch": "+0Hz",
+    },
+    "christopher_calm": {
+        "voice": "en-US-ChristopherNeural",
+        "rate": "+0%",
+        "pitch": "+0Hz",
+    },
+    "guy_friendly": {
+        "voice": "en-US-GuyNeural",
+        "rate": "+0%",
+        "pitch": "+0Hz",
     },
 
-    # Female voices - inspiring, dynamic
-    "jenny_inspiring": {
-        "voice": "en-US-JennyNeural",
-        "rate": "+10%",
-        "pitch": "+5Hz",
-        "style": "inspiring"
-    },
-    "aria_powerful": {
-        "voice": "en-US-AriaNeural",
-        "rate": "+15%",
+    # Female voices - warm, authentic
+    "ava_warm": {
+        "voice": "en-US-AvaNeural",
+        "rate": "+0%",
         "pitch": "+0Hz",
-        "style": "powerful"
     },
-    "sara_motivational": {
-        "voice": "en-US-SaraNeural",
-        "rate": "+12%",
-        "pitch": "+3Hz",
-        "style": "motivational"
+    "emma_natural": {
+        "voice": "en-US-EmmaNeural",
+        "rate": "+0%",
+        "pitch": "+0Hz",
+    },
+    "aria_friendly": {
+        "voice": "en-US-AriaNeural",
+        "rate": "+0%",
+        "pitch": "+0Hz",
+    },
+    "jenny_conversational": {
+        "voice": "en-US-JennyNeural",
+        "rate": "+0%",
+        "pitch": "+0Hz",
     },
 }
 
 # Default profiles for different content types
 CONTENT_VOICE_MAP = {
-    "motivational": ["guy_energetic", "aria_powerful", "tony_intense"],
-    "tutorial": ["christopher_confident", "jenny_inspiring"],
-    "story": ["sara_motivational", "guy_energetic"],
-    "hype": ["tony_intense", "aria_powerful"],
-    "calm": ["christopher_confident", "jenny_inspiring"],
+    "motivational": ["andrew_natural", "aria_friendly", "brian_confident"],
+    "tutorial": ["emma_natural", "christopher_calm"],
+    "story": ["ava_warm", "guy_friendly"],
+    "hype": ["brian_confident", "aria_friendly"],
+    "calm": ["ava_warm", "jenny_conversational"],
 }
 
 
@@ -95,14 +100,17 @@ class VoiceoverGenerator:
         self,
         text: str,
         output_path: str,
-        voice: str = "en-US-GuyNeural",
-        rate: str = "+10%",
+        voice: str = "en-US-DavisNeural",
+        rate: str = "+0%",
         pitch: str = "+0Hz"
     ) -> bool:
-        """Generate voiceover using Edge TTS"""
+        """Generate voiceover using Edge TTS with natural speech"""
         try:
+            # Make text more natural with better pacing
+            natural_text = self._add_natural_pauses(text)
+
             communicate = edge_tts.Communicate(
-                text,
+                natural_text,
                 voice,
                 rate=rate,
                 pitch=pitch
@@ -112,6 +120,30 @@ class VoiceoverGenerator:
         except Exception as e:
             print(f"Edge TTS error: {e}")
             return False
+
+    def _add_natural_pauses(self, text: str) -> str:
+        """Add natural pauses and breathing room to text"""
+        # Replace ... with longer pauses
+        text = text.replace("...", ", ")
+        text = text.replace("..", ", ")
+
+        # Add slight pauses after key phrases
+        pause_after = [
+            "Look,", "Listen,", "Here's the thing,", "Honestly,",
+            "The truth is,", "I'm telling you,", "Trust me,",
+            "Now,", "So,", "And,", "But,"
+        ]
+
+        for phrase in pause_after:
+            if phrase.lower() in text.lower():
+                text = text.replace(phrase, phrase + " ")
+
+        # Ensure sentences have breathing room
+        text = text.replace(". ", ".  ")
+        text = text.replace("! ", "!  ")
+        text = text.replace("? ", "?  ")
+
+        return text
 
     def generate_voiceover(
         self,
@@ -200,7 +232,8 @@ class VoiceoverGenerator:
         """
         Generate voiceover optimized for video overlay texts.
 
-        Adds emphasis and pacing appropriate for short-form content.
+        Makes the text sound natural and conversational, not like
+        someone reading bullet points.
         """
         if not texts:
             return None
@@ -219,10 +252,57 @@ class VoiceoverGenerator:
         if not spoken_texts:
             return None
 
-        # Join with dramatic pauses
-        script = " ... ".join(spoken_texts)
+        # Make it sound like natural speech, not bullet points
+        script = self._make_conversational(spoken_texts)
 
         return self.generate_voiceover(script, style)
+
+    def _make_conversational(self, texts: List[str]) -> str:
+        """
+        Transform bullet-point style text into natural conversational speech.
+        """
+        if not texts:
+            return ""
+
+        # Conversational connectors
+        connectors = [
+            "And here's the thing, ",
+            "Look, ",
+            "So ",
+            "And then ",
+            "But then ",
+            "That's when ",
+            "And honestly, ",
+            "Now ",
+            "See, ",
+        ]
+
+        result_parts = []
+
+        for i, text in enumerate(texts):
+            if i == 0:
+                # First line - hook, say it directly
+                result_parts.append(text)
+            elif i == len(texts) - 1:
+                # Last line - CTA
+                result_parts.append(f"So, {text.lower()}" if not text[0].isupper() else text)
+            else:
+                # Middle lines - add natural connectors occasionally
+                if i % 2 == 1 and len(texts) > 3:
+                    connector = random.choice(connectors)
+                    # Don't add connector if text already starts with one
+                    if not any(text.lower().startswith(c.lower().strip()) for c in connectors):
+                        text = connector + text[0].lower() + text[1:] if text[0].isupper() else connector + text
+                result_parts.append(text)
+
+        # Join with natural pauses (periods create pauses in TTS)
+        script = ". ".join(result_parts)
+
+        # Clean up any weird punctuation
+        script = script.replace(".. ", ". ")
+        script = script.replace(".,", ",")
+
+        return script
 
 
 def get_available_voices() -> List[str]:

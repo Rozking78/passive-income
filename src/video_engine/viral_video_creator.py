@@ -60,24 +60,54 @@ class StockMediaFetcher:
         self.pexels_key = os.environ.get("PEXELS_API_KEY", "")
         self.pixabay_key = os.environ.get("PIXABAY_API_KEY", "")
 
-        # Pre-built list of motivational search terms
-        self.motivational_terms = [
-            "success motivation",
-            "entrepreneur working",
-            "laptop typing",
-            "money success",
-            "business meeting",
-            "coffee morning",
-            "city lifestyle",
-            "tech office",
-            "productivity",
-            "hustle grind",
-            "luxury lifestyle",
-            "professional working",
-            "creative office",
-            "startup team",
-            "winning success"
+        # Psychology-aligned video search terms
+        # Matching the transformation narrative: Pain → Discovery → Freedom
+
+        # Pain state visuals (relatable struggle)
+        self.pain_visuals = [
+            "stressed person working",
+            "tired at desk",
+            "person frustrated computer",
+            "overwhelmed office",
+            "exhausted working late",
+            "burnout stress",
         ]
+
+        # Discovery/Solution visuals
+        self.discovery_visuals = [
+            "laptop typing",
+            "person using phone",
+            "technology screen",
+            "modern workspace",
+            "creative working",
+        ]
+
+        # Transformation/Freedom visuals
+        self.transformation_visuals = [
+            "person relaxing beach",
+            "freedom happy person",
+            "celebrating success",
+            "coffee morning relaxed",
+            "travel lifestyle",
+            "person smiling laptop",
+            "financial freedom",
+            "work from anywhere",
+        ]
+
+        # Aspirational/Luxury (use sparingly - believability)
+        self.aspirational_visuals = [
+            "modern city lifestyle",
+            "luxury apartment view",
+            "successful entrepreneur",
+            "morning routine wealthy",
+        ]
+
+        # Combined default (balanced)
+        self.motivational_terms = (
+            self.pain_visuals[:2] +
+            self.discovery_visuals +
+            self.transformation_visuals[:4]
+        )
 
         # Music moods for different content types
         self.music_moods = {
