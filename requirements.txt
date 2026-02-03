@@ -1,8 +1,21 @@
-# Core dependencies (all included in Python stdlib)
-# No external packages required for basic functionality!
+# Core dependencies (stdlib - no install needed)
+# sqlite3, json, random, etc.
 
-# Optional - for enhanced features:
-# requests>=2.28.0    # Better HTTP handling
-# schedule>=1.1.0     # Task scheduling
-# rich>=13.0.0        # Beautiful terminal output
-# python-dotenv>=1.0  # Environment variables
+# Video Creation
+moviepy>=1.0.3       # Video editing
+gTTS>=2.3.0          # Text-to-speech
+Pillow>=9.0.0        # Image processing
+
+# Social Media APIs (optional)
+tweepy>=4.14.0       # Twitter/X API
+google-api-python-client>=2.0.0  # YouTube API
+google-auth-oauthlib>=1.0.0      # YouTube OAuth
+
+# Optional enhancements
+requests>=2.28.0     # HTTP requests
+schedule>=1.1.0      # Task scheduling
+rich>=13.0.0         # Beautiful terminal output
+python-dotenv>=1.0   # Environment variables
+
+# System requirement (install separately):
+# FFmpeg - brew install ffmpeg (macOS) or apt install ffmpeg (Linux)
