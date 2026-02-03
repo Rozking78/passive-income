@@ -23,3 +23,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Generated content (don't commit to repo)
+content/videos/*.mp4
+content/tiktok_queue/*.mp4
+content/stock_media/music/*.mp3
+content/stock_media/videos/*.mp4

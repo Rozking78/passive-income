@@ -20,6 +20,16 @@ If you don't have FFmpeg:
 brew install ffmpeg
 ```
 
+### Step 1.5: Setup Viral Media (Music & Backgrounds)
+```bash
+python3 setup_media.py
+```
+This downloads royalty-free music and creates gradient backgrounds.
+
+**Optional - For More Video Variety:**
+1. Get free API key: https://www.pexels.com/api/
+2. Add to `.env` file: `PEXELS_API_KEY=your-key-here`
+
 ### Step 2: Sign Up for Affiliate Programs
 
 Sign up for these (free to join):

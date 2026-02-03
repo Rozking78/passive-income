@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from src.content_engine.auto_generator import AutoContentGenerator
 from src.video_engine.video_creator import SimpleVideoCreator, VideoCreator, MOVIEPY_AVAILABLE
+from src.video_engine.viral_video_creator import ViralVideoCreator, MotivationalContentGenerator
 from src.video_engine.auto_poster import AutoPoster, ContentScheduler, TikTokPoster
 from src.video_engine.adaptive_engine import AdaptiveEngine
 from src.link_tracker.tracker import LinkTracker
@@ -40,12 +41,15 @@ from src.link_tracker.tracker import LinkTracker
 class FullAutomation:
     """Complete automation system"""
 
-    def __init__(self, niche: str = "ai writing tools"):
+    def __init__(self, niche: str = "ai writing tools", use_viral_mode: bool = True):
         self.niche = niche
+        self.use_viral_mode = use_viral_mode
 
         # Initialize all components
         self.content_gen = AutoContentGenerator(niche=niche)
         self.video_creator = SimpleVideoCreator()
+        self.viral_creator = ViralVideoCreator()
+        self.motivational = MotivationalContentGenerator()
         self.poster = AutoPoster()
         self.scheduler = ContentScheduler()
         self.adaptive = AdaptiveEngine()
@@ -57,6 +61,7 @@ class FullAutomation:
         print(f"🤖 Automation System Initialized")
         print(f"   Niche: {niche}")
         print(f"   Video creation: {'✓' if self.can_create_video else '✗ Install FFmpeg'}")
+        print(f"   Viral mode: {'✓ ON' if use_viral_mode else '✗ OFF'}")
 
     def run_cycle(self, num_videos: int = 3, auto_post: bool = True):
         """
@@ -120,10 +125,30 @@ class FullAutomation:
                 if quotes:
                     texts = [script['hook']] + quotes[:3] + [script.get('cta', 'Link in bio')]
 
-                video_path = self.video_creator.create_slideshow_video(
-                    texts,
-                    output_name=f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.mp4"
-                )
+                output_name = f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.mp4"
+
+                # Use viral mode for enhanced videos with backgrounds
+                if self.use_viral_mode:
+                    # Generate motivational script
+                    viral_texts = self.motivational.generate_viral_script(
+                        product=script['product'],
+                        benefit="saving hours every week"
+                    )
+                    # Mix original content with viral hooks
+                    final_texts = [texts[0]] + viral_texts[1:-1] + [texts[-1]]
+
+                    video_path = self.viral_creator.create_viral_video(
+                        texts=final_texts,
+                        background_query="motivation success",
+                        style="bold_white",
+                        add_hook=False,
+                        output_name=output_name
+                    )
+                else:
+                    video_path = self.video_creator.create_slideshow_video(
+                        texts,
+                        output_name=output_name
+                    )
 
                 if video_path:
                     videos.append({

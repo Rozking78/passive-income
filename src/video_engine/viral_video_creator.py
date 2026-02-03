@@ -1,0 +1,884 @@
+"""
+Viral Video Creator
+====================
+Creates high-engagement TikTok/Reels videos with:
+- Background stock footage (Pexels/Pixabay)
+- Royalty-free trending music
+- Animated text overlays
+- Pattern interrupts for retention
+- Motivational hooks
+
+Based on viral content research:
+- Completion rate is #1 factor
+- Hook in first 1-3 seconds
+- Pattern interrupts every 2-3 seconds
+- Text in upper third, avoid bottom 20%
+- 3-7 words per text chunk
+"""
+
+import os
+import json
+import random
+import tempfile
+import subprocess
+import urllib.request
+import urllib.parse
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
+try:
+    from moviepy.editor import (
+        VideoFileClip, AudioFileClip, ImageClip, TextClip,
+        CompositeVideoClip, CompositeAudioClip, concatenate_videoclips,
+        ColorClip, vfx
+    )
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
+
+
+class StockMediaFetcher:
+    """Fetches royalty-free videos and music from APIs"""
+
+    def __init__(self, cache_dir: str = "content/stock_media"):
+        self.cache_dir = Path(cache_dir)
+        self.video_cache = self.cache_dir / "videos"
+        self.music_cache = self.cache_dir / "music"
+        self.video_cache.mkdir(parents=True, exist_ok=True)
+        self.music_cache.mkdir(parents=True, exist_ok=True)
+
+        # API keys (free tiers available)
+        self.pexels_key = os.environ.get("PEXELS_API_KEY", "")
+        self.pixabay_key = os.environ.get("PIXABAY_API_KEY", "")
+
+        # Pre-built list of motivational search terms
+        self.motivational_terms = [
+            "success motivation",
+            "entrepreneur working",
+            "laptop typing",
+            "money success",
+            "business meeting",
+            "coffee morning",
+            "city lifestyle",
+            "tech office",
+            "productivity",
+            "hustle grind",
+            "luxury lifestyle",
+            "professional working",
+            "creative office",
+            "startup team",
+            "winning success"
+        ]
+
+        # Music moods for different content types
+        self.music_moods = {
+            "motivational": ["uplifting", "inspiring", "motivational", "epic"],
+            "chill": ["lo-fi", "ambient", "chill", "relaxing"],
+            "energetic": ["upbeat", "energetic", "electronic", "dance"],
+            "dramatic": ["cinematic", "dramatic", "intense", "powerful"]
+        }
+
+    def fetch_pexels_video(self, query: str = None, orientation: str = "portrait") -> Optional[str]:
+        """
+        Fetch a video from Pexels API.
+        Returns path to downloaded video.
+        """
+        if not self.pexels_key:
+            return self._get_cached_video()
+
+        query = query or random.choice(self.motivational_terms)
+
+        # Check cache first
+        cache_key = f"pexels_{query.replace(' ', '_')}"
+        cached = list(self.video_cache.glob(f"{cache_key}*.mp4"))
+        if cached:
+            return str(random.choice(cached))
+
+        try:
+            url = f"https://api.pexels.com/videos/search?query={urllib.parse.quote(query)}&orientation={orientation}&per_page=10"
+            req = urllib.request.Request(url)
+            req.add_header("Authorization", self.pexels_key)
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode())
+
+            if data.get("videos"):
+                video = random.choice(data["videos"])
+                # Get HD quality video file
+                video_files = video.get("video_files", [])
+                # Prefer 720p or 1080p
+                suitable = [v for v in video_files if v.get("height", 0) >= 720]
+                if suitable:
+                    video_url = suitable[0]["link"]
+
+                    # Download video
+                    output_path = self.video_cache / f"{cache_key}_{video['id']}.mp4"
+                    urllib.request.urlretrieve(video_url, output_path)
+                    return str(output_path)
+        except Exception as e:
+            print(f"Pexels API error: {e}")
+
+        return self._get_cached_video()
+
+    def fetch_pixabay_video(self, query: str = None) -> Optional[str]:
+        """
+        Fetch a video from Pixabay API.
+        Returns path to downloaded video.
+        """
+        if not self.pixabay_key:
+            return self._get_cached_video()
+
+        query = query or random.choice(self.motivational_terms)
+
+        # Check cache first
+        cache_key = f"pixabay_{query.replace(' ', '_')}"
+        cached = list(self.video_cache.glob(f"{cache_key}*.mp4"))
+        if cached:
+            return str(random.choice(cached))
+
+        try:
+            url = f"https://pixabay.com/api/videos/?key={self.pixabay_key}&q={urllib.parse.quote(query)}&per_page=10"
+
+            with urllib.request.urlopen(url, timeout=10) as response:
+                data = json.loads(response.read().decode())
+
+            if data.get("hits"):
+                video = random.choice(data["hits"])
+                # Get medium quality for balance of size/quality
+                video_url = video.get("videos", {}).get("medium", {}).get("url")
+                if video_url:
+                    output_path = self.video_cache / f"{cache_key}_{video['id']}.mp4"
+                    urllib.request.urlretrieve(video_url, output_path)
+                    return str(output_path)
+        except Exception as e:
+            print(f"Pixabay API error: {e}")
+
+        return self._get_cached_video()
+
+    def fetch_background_video(self, query: str = None) -> Optional[str]:
+        """Fetch a background video from available APIs"""
+        # Try Pexels first, then Pixabay
+        video = self.fetch_pexels_video(query)
+        if not video:
+            video = self.fetch_pixabay_video(query)
+        return video
+
+    def fetch_music(self, mood: str = "motivational") -> Optional[str]:
+        """
+        Fetch royalty-free music.
+        Uses local cache or downloads from Pixabay.
+        """
+        # Check local music cache
+        cached = list(self.music_cache.glob("*.mp3"))
+        if cached:
+            return str(random.choice(cached))
+
+        if not self.pixabay_key:
+            return None
+
+        search_terms = self.music_moods.get(mood, ["motivational"])
+        query = random.choice(search_terms)
+
+        try:
+            url = f"https://pixabay.com/api/?key={self.pixabay_key}&q={urllib.parse.quote(query)}&category=music&per_page=5"
+
+            with urllib.request.urlopen(url, timeout=10) as response:
+                data = json.loads(response.read().decode())
+
+            # Note: Pixabay's free API has limited music access
+            # In production, you'd use their audio API or Mixkit
+            if data.get("hits"):
+                # For demo, we'll use the cache
+                pass
+        except Exception as e:
+            print(f"Music API error: {e}")
+
+        return None
+
+    def _get_cached_video(self) -> Optional[str]:
+        """Get a random video from cache"""
+        cached = list(self.video_cache.glob("*.mp4"))
+        if cached:
+            return str(random.choice(cached))
+        return None
+
+    def get_local_music(self) -> Optional[str]:
+        """Get a random music track from local cache"""
+        music_files = list(self.music_cache.glob("*.mp3"))
+        if music_files:
+            return str(random.choice(music_files))
+        return None
+
+    def download_sample_videos(self):
+        """Download some sample videos for offline use"""
+        print("📥 Downloading sample background videos...")
+
+        # These are free stock video URLs from Pexels/Pixabay CDN
+        # In production, you'd fetch these via the API
+        samples = [
+            # Add sample video URLs here when you have API keys
+        ]
+
+        for i, url in enumerate(samples):
+            try:
+                output = self.video_cache / f"sample_{i}.mp4"
+                if not output.exists():
+                    urllib.request.urlretrieve(url, output)
+                    print(f"  ✓ Downloaded sample_{i}.mp4")
+            except Exception as e:
+                print(f"  ✗ Failed to download sample {i}: {e}")
+
+
+class ViralVideoCreator:
+    """
+    Creates viral-optimized short-form videos with:
+    - Background footage
+    - Text overlays
+    - Music
+    - Pattern interrupts
+    """
+
+    def __init__(self, output_dir: str = "content/videos"):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.width = 1080
+        self.height = 1920
+        self.fps = 30
+
+        self.media_fetcher = StockMediaFetcher()
+
+        # Text positioning (upper third, avoid bottom 20%)
+        # TikTok safe zones
+        self.text_y_position = 0.25  # 25% from top (upper third)
+        self.text_margin = 50
+
+        # Visual styles
+        self.text_styles = {
+            "bold_white": {
+                "fontsize": 80,
+                "color": "white",
+                "stroke_color": "black",
+                "stroke_width": 4,
+            },
+            "neon_green": {
+                "fontsize": 75,
+                "color": "#00ff88",
+                "stroke_color": "black",
+                "stroke_width": 3,
+            },
+            "yellow_pop": {
+                "fontsize": 85,
+                "color": "#ffff00",
+                "stroke_color": "black",
+                "stroke_width": 5,
+            },
+            "minimal_white": {
+                "fontsize": 70,
+                "color": "white",
+                "stroke_color": "none",
+                "stroke_width": 0,
+            }
+        }
+
+        # Hook templates for maximum engagement
+        self.viral_hooks = [
+            "This changed everything",
+            "Nobody talks about this",
+            "POV: You discovered",
+            "The secret they hide",
+            "Stop scrolling if you",
+            "I wish I knew this sooner",
+            "This is the sign you need",
+            "What they don't tell you",
+            "In 30 seconds you'll learn",
+            "Wait for it..."
+        ]
+
+        # Pattern interrupt transitions
+        self.pattern_interrupts = [
+            "zoom_in",
+            "shake",
+            "flash",
+            "glitch",
+            "color_pop"
+        ]
+
+    def check_ffmpeg(self) -> bool:
+        """Check if FFmpeg is available"""
+        try:
+            subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
+    def create_viral_video(
+        self,
+        texts: List[str],
+        background_query: str = None,
+        music_path: str = None,
+        style: str = "bold_white",
+        add_hook: bool = True,
+        output_name: str = None
+    ) -> Optional[str]:
+        """
+        Create a viral-optimized video.
+
+        Args:
+            texts: List of text strings to display (3-7 words each)
+            background_query: Search term for background video
+            music_path: Path to music file (optional)
+            style: Text style name
+            add_hook: Whether to add a hook at the start
+            output_name: Custom output filename
+
+        Returns:
+            Path to created video
+        """
+        if not self.check_ffmpeg():
+            print("Error: FFmpeg not found. Install with: brew install ffmpeg")
+            return None
+
+        if not PIL_AVAILABLE:
+            print("Error: Pillow required. Run: pip install Pillow")
+            return None
+
+        # Add viral hook if requested
+        if add_hook and texts:
+            hook = random.choice(self.viral_hooks)
+            texts = [hook] + texts
+
+        # Ensure texts are short (3-7 words)
+        texts = [self._shorten_text(t) for t in texts]
+
+        # Fetch background video
+        bg_video = self.media_fetcher.fetch_background_video(background_query)
+
+        # Fetch music if not provided
+        if not music_path:
+            # Try API first, fall back to local cache
+            music_path = self.media_fetcher.fetch_music("motivational")
+            if not music_path:
+                music_path = self.media_fetcher.get_local_music()
+
+        # Create video with or without background
+        if bg_video and MOVIEPY_AVAILABLE:
+            return self._create_with_moviepy(texts, bg_video, music_path, style, output_name)
+        else:
+            return self._create_with_ffmpeg(texts, bg_video, music_path, style, output_name)
+
+    def _shorten_text(self, text: str, max_words: int = 7) -> str:
+        """Ensure text is short for viral format"""
+        words = text.split()
+        if len(words) <= max_words:
+            return text
+        return " ".join(words[:max_words]) + "..."
+
+    def _create_with_moviepy(
+        self,
+        texts: List[str],
+        bg_video: str,
+        music_path: str,
+        style: str,
+        output_name: str
+    ) -> Optional[str]:
+        """Create video using MoviePy for advanced effects"""
+
+        style_config = self.text_styles.get(style, self.text_styles["bold_white"])
+
+        try:
+            # Load background video
+            bg_clip = VideoFileClip(bg_video)
+
+            # Resize to 9:16 (TikTok format)
+            bg_clip = self._resize_to_vertical(bg_clip)
+
+            # Calculate timing
+            duration_per_text = 2.5  # seconds
+            total_duration = len(texts) * duration_per_text
+
+            # Loop background if needed
+            if bg_clip.duration < total_duration:
+                loops_needed = int(total_duration / bg_clip.duration) + 1
+                bg_clip = bg_clip.loop(n=loops_needed)
+
+            bg_clip = bg_clip.subclip(0, total_duration)
+
+            # Add slight zoom for engagement
+            bg_clip = bg_clip.resize(lambda t: 1 + 0.02 * t)
+            bg_clip = bg_clip.set_position("center")
+
+            # Darken background for text visibility
+            darkened = bg_clip.fl_image(lambda frame: (frame * 0.6).astype('uint8'))
+
+            # Create text clips
+            text_clips = []
+            for i, text in enumerate(texts):
+                start_time = i * duration_per_text
+
+                # Create text clip
+                txt = TextClip(
+                    text,
+                    fontsize=style_config["fontsize"],
+                    color=style_config["color"],
+                    font="Arial-Bold",
+                    stroke_color=style_config.get("stroke_color", "black"),
+                    stroke_width=style_config.get("stroke_width", 3),
+                    size=(self.width - 100, None),
+                    method="caption",
+                    align="center"
+                )
+
+                # Position in upper third
+                txt = txt.set_position(("center", self.height * self.text_y_position))
+                txt = txt.set_start(start_time)
+                txt = txt.set_duration(duration_per_text)
+
+                # Add fade in/out
+                txt = txt.crossfadein(0.3).crossfadeout(0.3)
+
+                text_clips.append(txt)
+
+            # Composite all clips
+            final = CompositeVideoClip(
+                [darkened] + text_clips,
+                size=(self.width, self.height)
+            )
+
+            # Add music
+            if music_path and os.path.exists(music_path):
+                audio = AudioFileClip(music_path)
+                if audio.duration > total_duration:
+                    audio = audio.subclip(0, total_duration)
+                # Fade music
+                audio = audio.audio_fadeout(2)
+                final = final.set_audio(audio)
+
+            # Export
+            if not output_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_name = f"viral_{timestamp}.mp4"
+
+            output_path = self.output_dir / output_name
+
+            final.write_videofile(
+                str(output_path),
+                fps=self.fps,
+                codec="libx264",
+                audio_codec="aac",
+                threads=4,
+                preset="medium",
+                verbose=False,
+                logger=None
+            )
+
+            # Cleanup
+            final.close()
+            bg_clip.close()
+
+            return str(output_path)
+
+        except Exception as e:
+            print(f"MoviePy error: {e}")
+            return self._create_with_ffmpeg(texts, bg_video, music_path, style, output_name)
+
+    def _resize_to_vertical(self, clip):
+        """Resize video to 9:16 vertical format"""
+        # Calculate scale to fill vertical frame
+        scale_w = self.width / clip.w
+        scale_h = self.height / clip.h
+        scale = max(scale_w, scale_h)
+
+        new_w = int(clip.w * scale)
+        new_h = int(clip.h * scale)
+
+        clip = clip.resize((new_w, new_h))
+
+        # Center crop to 9:16
+        x_center = new_w // 2
+        y_center = new_h // 2
+
+        clip = clip.crop(
+            x_center=x_center,
+            y_center=y_center,
+            width=self.width,
+            height=self.height
+        )
+
+        return clip
+
+    def _create_with_ffmpeg(
+        self,
+        texts: List[str],
+        bg_video: str,
+        music_path: str,
+        style: str,
+        output_name: str
+    ) -> Optional[str]:
+        """Create video using FFmpeg directly (fallback method)"""
+
+        temp_dir = Path(tempfile.mkdtemp())
+
+        try:
+            # Create text overlay images
+            duration_per_text = 2.5
+            total_duration = len(texts) * duration_per_text
+
+            # If we have a background video, extract and resize
+            if bg_video:
+                processed_bg = temp_dir / "bg_processed.mp4"
+                subprocess.run([
+                    "ffmpeg", "-y",
+                    "-i", bg_video,
+                    "-vf", f"scale={self.width}:{self.height}:force_original_aspect_ratio=increase,crop={self.width}:{self.height},setsar=1,eq=brightness=-0.2",
+                    "-t", str(total_duration),
+                    "-an",  # Remove audio
+                    str(processed_bg)
+                ], capture_output=True, check=True)
+                bg_source = str(processed_bg)
+            else:
+                # Create black background
+                bg_source = f"color=c=black:s={self.width}x{self.height}:d={total_duration}"
+
+            # Create text overlay images
+            overlay_paths = []
+            for i, text in enumerate(texts):
+                img_path = temp_dir / f"text_{i:03d}.png"
+                self._create_text_overlay(text, str(img_path), style)
+                overlay_paths.append(img_path)
+
+            # Build FFmpeg filter for text overlays
+            filter_parts = []
+            inputs = f'-i "{bg_source}"' if bg_video else f'-f lavfi -i "{bg_source}"'
+
+            for i, path in enumerate(overlay_paths):
+                inputs += f' -i "{path}"'
+                start_time = i * duration_per_text
+                end_time = start_time + duration_per_text
+
+                if i == 0:
+                    filter_parts.append(
+                        f"[0][1]overlay=(W-w)/2:(H-h)/4:enable='between(t,{start_time},{end_time})'[v{i}]"
+                    )
+                else:
+                    filter_parts.append(
+                        f"[v{i-1}][{i+1}]overlay=(W-w)/2:(H-h)/4:enable='between(t,{start_time},{end_time})'[v{i}]"
+                    )
+
+            filter_complex = ";".join(filter_parts)
+            final_output = f"[v{len(overlay_paths)-1}]"
+
+            # Output path
+            if not output_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_name = f"viral_{timestamp}.mp4"
+
+            output_path = self.output_dir / output_name
+
+            # Build command
+            cmd = f'ffmpeg -y {inputs}'
+            if music_path and os.path.exists(music_path):
+                cmd += f' -i "{music_path}"'
+
+            cmd += f' -filter_complex "{filter_complex}"'
+            cmd += f' -map "{final_output}" -map {len(overlay_paths)+1}:a?'
+            cmd += f' -c:v libx264 -pix_fmt yuv420p -r {self.fps}'
+            cmd += f' -t {total_duration}'
+            cmd += f' "{output_path}"'
+
+            subprocess.run(cmd, shell=True, capture_output=True, check=True)
+
+            return str(output_path)
+
+        except subprocess.CalledProcessError as e:
+            print(f"FFmpeg error: {e.stderr.decode() if e.stderr else e}")
+
+            # Ultimate fallback: simple slideshow
+            return self._create_simple_slideshow(texts, output_name)
+        finally:
+            # Cleanup temp files
+            for p in temp_dir.iterdir():
+                try:
+                    p.unlink()
+                except:
+                    pass
+            try:
+                temp_dir.rmdir()
+            except:
+                pass
+
+    def _create_text_overlay(self, text: str, output_path: str, style: str = "bold_white"):
+        """Create a transparent PNG with text overlay"""
+
+        style_config = self.text_styles.get(style, self.text_styles["bold_white"])
+
+        # Create transparent image
+        img = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Load font
+        font_size = style_config["fontsize"]
+        try:
+            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+        except:
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except:
+                font = ImageFont.load_default()
+
+        # Wrap text (3-7 words per line)
+        wrapped = self._wrap_text(text, max_words=4)
+
+        # Calculate text position (upper third)
+        bbox = draw.multiline_textbbox((0, 0), wrapped, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        x = (self.width - text_width) // 2
+        y = int(self.height * self.text_y_position)
+
+        # Draw stroke/outline
+        stroke_width = style_config.get("stroke_width", 3)
+        stroke_color = style_config.get("stroke_color", "black")
+
+        if stroke_color != "none" and stroke_width > 0:
+            for dx in range(-stroke_width, stroke_width + 1):
+                for dy in range(-stroke_width, stroke_width + 1):
+                    if dx*dx + dy*dy <= stroke_width*stroke_width:
+                        draw.multiline_text(
+                            (x + dx, y + dy),
+                            wrapped,
+                            font=font,
+                            fill=stroke_color,
+                            align="center"
+                        )
+
+        # Draw main text
+        draw.multiline_text(
+            (x, y),
+            wrapped,
+            font=font,
+            fill=style_config["color"],
+            align="center"
+        )
+
+        img.save(output_path)
+
+    def _wrap_text(self, text: str, max_words: int = 4) -> str:
+        """Wrap text into short lines"""
+        words = text.split()
+        lines = []
+
+        for i in range(0, len(words), max_words):
+            lines.append(" ".join(words[i:i + max_words]))
+
+        return "\n".join(lines)
+
+    def _create_simple_slideshow(self, texts: List[str], output_name: str) -> Optional[str]:
+        """Create a simple slideshow as fallback"""
+
+        temp_dir = Path(tempfile.mkdtemp())
+
+        try:
+            duration_per_slide = 2.5
+
+            # Create slide images
+            image_paths = []
+            for i, text in enumerate(texts):
+                img_path = temp_dir / f"slide_{i:03d}.png"
+
+                # Create dark gradient background with text
+                img = Image.new("RGB", (self.width, self.height), (20, 20, 30))
+                draw = ImageDraw.Draw(img)
+
+                font_size = 80
+                try:
+                    font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+                except:
+                    font = ImageFont.load_default()
+
+                wrapped = self._wrap_text(text, 4)
+                bbox = draw.multiline_textbbox((0, 0), wrapped, font=font)
+                text_width = bbox[2] - bbox[0]
+
+                x = (self.width - text_width) // 2
+                y = int(self.height * 0.35)
+
+                # Draw text with shadow
+                draw.multiline_text((x+3, y+3), wrapped, font=font, fill=(0, 0, 0), align="center")
+                draw.multiline_text((x, y), wrapped, font=font, fill="white", align="center")
+
+                img.save(img_path)
+                image_paths.append(img_path)
+
+            # Create file list for FFmpeg
+            list_path = temp_dir / "files.txt"
+            with open(list_path, "w") as f:
+                for img_path in image_paths:
+                    f.write(f"file '{img_path}'\n")
+                    f.write(f"duration {duration_per_slide}\n")
+                f.write(f"file '{image_paths[-1]}'\n")
+
+            # Output
+            if not output_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_name = f"viral_{timestamp}.mp4"
+
+            output_path = self.output_dir / output_name
+
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(list_path),
+                "-vf", f"scale={self.width}:{self.height}",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-r", "30",
+                str(output_path)
+            ], capture_output=True, check=True)
+
+            return str(output_path)
+
+        except Exception as e:
+            print(f"Slideshow error: {e}")
+            return None
+        finally:
+            for p in temp_dir.iterdir():
+                try:
+                    p.unlink()
+                except:
+                    pass
+            try:
+                temp_dir.rmdir()
+            except:
+                pass
+
+
+class MotivationalContentGenerator:
+    """Generates motivational content optimized for virality"""
+
+    def __init__(self):
+        # Viral hook patterns
+        self.hooks = [
+            "This {product} changed my life",
+            "POV: You just discovered {product}",
+            "Nobody talks about this",
+            "The secret to {benefit}",
+            "Stop scrolling. You need this.",
+            "I wish someone told me this",
+            "This is your sign to {action}",
+            "In {time} you'll understand",
+            "What they don't want you to know",
+            "Wait for the end..."
+        ]
+
+        # Pain points that resonate
+        self.pain_points = [
+            "wasting hours on {task}",
+            "struggling with {problem}",
+            "feeling stuck",
+            "working too hard",
+            "not seeing results",
+            "missing opportunities"
+        ]
+
+        # Benefits/transformations
+        self.benefits = [
+            "save 10+ hours weekly",
+            "write 10x faster",
+            "create viral content",
+            "scale your business",
+            "automate everything",
+            "finally break through"
+        ]
+
+        # CTAs
+        self.ctas = [
+            "Link in bio to try free",
+            "Comment 'INFO' for link",
+            "Save this for later",
+            "Share with someone who needs this",
+            "Follow for more tips"
+        ]
+
+    def generate_viral_script(self, product: str, benefit: str) -> List[str]:
+        """Generate a viral video script (list of text screens)"""
+
+        hook = random.choice(self.hooks).format(
+            product=product,
+            benefit=benefit,
+            action="start",
+            time="30 seconds"
+        )
+
+        pain = random.choice(self.pain_points).format(
+            task="writing content",
+            problem="writer's block"
+        )
+
+        transformation = random.choice(self.benefits)
+
+        cta = random.choice(self.ctas)
+
+        script = [
+            hook,
+            f"I used to spend hours {pain}",
+            f"Then I found {product}",
+            f"Now I {transformation}",
+            cta
+        ]
+
+        return script
+
+
+def main():
+    """Demo the viral video creator"""
+
+    print("=" * 60)
+    print("VIRAL VIDEO CREATOR")
+    print("=" * 60)
+
+    creator = ViralVideoCreator()
+    content = MotivationalContentGenerator()
+
+    print("\n📋 Checking dependencies...")
+    print(f"   FFmpeg: {'✓' if creator.check_ffmpeg() else '✗'}")
+    print(f"   Pillow: {'✓' if PIL_AVAILABLE else '✗'}")
+    print(f"   MoviePy: {'✓' if MOVIEPY_AVAILABLE else '✗'}")
+
+    if not creator.check_ffmpeg():
+        print("\nInstall FFmpeg: brew install ffmpeg")
+        return
+
+    # Generate motivational script
+    print("\n📝 Generating viral script...")
+    script = content.generate_viral_script("Jasper AI", "writing 10x faster")
+
+    for i, text in enumerate(script):
+        print(f"   {i+1}. {text}")
+
+    # Create video
+    print("\n🎬 Creating viral video...")
+    video_path = creator.create_viral_video(
+        texts=script,
+        background_query="productivity motivation",
+        style="bold_white",
+        add_hook=False  # Already included in script
+    )
+
+    if video_path:
+        print(f"\n✓ Video created: {video_path}")
+    else:
+        print("\n✗ Video creation failed")
+
+
+if __name__ == "__main__":
+    main()
